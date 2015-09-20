@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="switcher_x_when_controller_showing">100px</dimen>
+    <dimen name="switcher_y_when_controller_showing">100px</dimen>
+</resources>

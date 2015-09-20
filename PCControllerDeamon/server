@@ -1,0 +1,98 @@
+#!/usr/bin/python
+
+import string
+import socket
+import time
+from pymouse import PyMouse
+port = 8081
+
+def inspect_speed():
+	t = time.time()
+	delta = t - last_move_time
+	speed = phone_offset_x / delta
+	print 'time:' + str(delta) + ' offset:' + str(phone_offset_x) + ' speed:' + str(speed)
+
+def getrate(dis, t):
+	speed = abs(dis / t)
+	if (speed < 5):
+		return speed * 0.17
+	else:
+		return -1.0 / (speed+1) + 1
+	
+
+m = PyMouse()
+(cur_point_x, cur_point_y) = m.position()
+(screen_width, screen_height) = m.screen_size()
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.bind(('', port))
+phone_width = 1080
+phone_height = 1920
+
+ratio_x = screen_width * 1.0 / phone_width * 3
+ratio_y = screen_height * 1.0 / phone_height * 4
+ratio_x = ratio_y
+is_pressed = False
+last_move_time = 0
+last_click_time = 0
+
+print('waiting for devices...')
+while(True):
+	data, addr = s.recvfrom(512)
+	data = data.split()
+	if ("init" in data) :
+		phone_width = string.atoi(data[1].split(',')[0])
+		phone_height = string.atoi(data[1].split(',')[1])
+		ratio_x = screen_width * 1.0 / phone_width * 3
+		ratio_y = screen_height * 1.0 / phone_height * 3
+		ratio_x = ratio_y
+		print 'connected'
+	elif ("click" in data) :
+		m.click(cur_point_x, cur_point_y, 1)
+		last_click_time=time.time()
+		print 'clicked'
+	elif ("move" in data) :
+		t = time.time()
+		delta = t - last_move_time
+		last_move_time = t
+		phone_offset_x = string.atoi(data[1].split(',')[0])
+		phone_offset_y = string.atoi(data[1].split(',')[1])
+		cur_point_x += phone_offset_x * ratio_x * getrate(phone_offset_x, delta)
+		cur_point_y += phone_offset_y * ratio_y * getrate(phone_offset_y, delta)
+		if (cur_point_x < 0 - 30):
+			cur_point_x = 0 - 30 
+		if (cur_point_y < 0 - 30):
+			cur_point_y = 0 - 30 
+		if (cur_point_x > screen_width + 30):
+			cur_point_x = screen_width + 30
+		if (cur_point_y > screen_height + 30):
+			cur_point_y = screen_height + 30
+		m.move(cur_point_x, cur_point_y)
+		inspect_speed()
+		print 'moved'
+	elif ("doubleclick" in data):
+		pass
+	elif ("rightclick" in data):
+		pass
+	elif ("middleclick" in data):
+		pass
+	elif ("leftdown" in data):
+		print 'leftdown'
+		t = time.time()
+		last_move_time = t
+		if (t - last_click_time <= 0.25 and not is_pressed):
+			m.press(cur_point_x,cur_point_y,1)
+			is_pressed = True
+		pass
+	elif ("leftup" in data):
+		print 'leftup'
+		if (is_pressed):
+			m.release(cur_point_x,cur_point_y,1)
+			is_pressed = False
+		pass
+	elif ("longpress" in data):
+		print 'longpress'
+		if (not is_pressed):
+			m.click(cur_point_x,cur_point_y,2)
+	else:
+		pass
+	time.sleep(0.001)
